@@ -42,7 +42,11 @@ router.post("/register", async (req, res) => {
 
         // Issue JWT token
         const token = jwt.sign(
-            { id: user.id, email: user.email },
+            { 
+                id: user.id, 
+                email: user.email,
+                role: user.role 
+            },
             JWT_SECRET,
             { expiresIn: "7d" }
         );
@@ -50,7 +54,13 @@ router.post("/register", async (req, res) => {
         res.json({
             message: "Registration successful",
             token,
-            user: { id: user._id, name: user.name, email: user.email, phone: user.phone }
+            user: { 
+                id: user.id, 
+                name: user.name, 
+                email: user.email, 
+                phone: user.phone,
+                role: user.role 
+            }
         });
 
     } catch (err) {
@@ -82,7 +92,11 @@ router.post("/login", async (req, res) => {
 
         // Issue JWT token
         const token = jwt.sign(
-            { id: user.id, email: user.email },
+            { 
+                id: user.id, 
+                email: user.email,
+                role: user.role 
+            },
             JWT_SECRET,
             { expiresIn: "7d" }
         );
@@ -90,7 +104,13 @@ router.post("/login", async (req, res) => {
         res.json({
             message: "Login successful",
             token,
-            user: { id: user._id, name: user.name, email: user.email, phone: user.phone }
+            user: { 
+                id: user.id, 
+                name: user.name, 
+                email: user.email, 
+                phone: user.phone,
+                role: user.role 
+            }
         });
 
     } catch (err) {

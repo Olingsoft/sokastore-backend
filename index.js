@@ -1,13 +1,24 @@
 const express = require('express');
 const sequelize = require('./database/sequelize');
 const User = require('./models/User');
+const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+app.use(cors({
+    origin: true, // Allow all origins in development
+    credentials: true, // Allow cookies to be sent cross-origin
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
+
+// Serve static files from the 'public' directory
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
 // Test database connection
 app.get('/', async (req, res) => {
@@ -24,9 +35,13 @@ app.get('/', async (req, res) => {
 // Routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/usersRoutes');
+const productRoutes = require('./routes/productRoute');
+const categoryRoutes = require('./routes/categoryRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
 
 // Sync database and start server
 sequelize.sync({ force: false }) // Set force: true to drop and recreate tables
