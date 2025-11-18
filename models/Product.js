@@ -2,11 +2,6 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../database/sequelize');
 
 const Product = sequelize.define('Product', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
     name: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -29,8 +24,17 @@ const Product = sequelize.define('Product', {
             }
         }
     },
-    size: {
+    category: {
         type: DataTypes.STRING,
+        allowNull: false,
+        validate: {
+            notEmpty: {
+                msg: 'Category is required'
+            }
+        }
+    },
+    size: {
+        type: DataTypes.STRING(20),
         allowNull: true,
         validate: {
             isIn: {
@@ -38,11 +42,6 @@ const Product = sequelize.define('Product', {
                 msg: 'Invalid size. Must be one of: XS, S, M, L, XL, XXL, XXXL, One Size, or empty'
             }
         }
-    },
-    
-    category: {
-        type: DataTypes.STRING,
-        allowNull: false,
     },
     description: {
         type: DataTypes.TEXT,
@@ -66,9 +65,22 @@ const Product = sequelize.define('Product', {
         defaultValue: true
     }
 }, {
-    timestamps: true,
     tableName: 'products',
-    underscored: true
+    timestamps: true,
+    underscored: false,
+    paranoid: true,
+    defaultScope: {
+        where: {
+            isActive: true
+        }
+    },
+    scopes: {
+        withInactive: {
+            where: {
+                isActive: true
+            }
+        }
+    }
 });
 
 module.exports = Product;
