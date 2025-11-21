@@ -3,6 +3,8 @@ const ProductImage = require('./ProductImage');
 const User = require('./User');
 const Cart = require('./CartModel');
 const CartItem = require('./CartItem');
+const Order = require('./Order');
+const OrderItem = require('./OrderItem');
 
 // Define associations
 Product.hasMany(ProductImage, {
@@ -63,4 +65,57 @@ CartItem.belongsTo(Product, {
     as: 'product'
 });
 
-module.exports = { Product, ProductImage, User, Cart, CartItem };
+// User - Order
+User.hasMany(Order, {
+    foreignKey: {
+        name: 'userId',
+        field: 'user_id'
+    },
+    as: 'orders'
+});
+
+Order.belongsTo(User, {
+    foreignKey: {
+        name: 'userId',
+        field: 'user_id'
+    },
+    as: 'user'
+});
+
+// Order - OrderItem
+Order.hasMany(OrderItem, {
+    foreignKey: {
+        name: 'orderId',
+        field: 'order_id'
+    },
+    as: 'items',
+    onDelete: 'CASCADE'
+});
+
+OrderItem.belongsTo(Order, {
+    foreignKey: {
+        name: 'orderId',
+        field: 'order_id'
+    },
+    as: 'order'
+});
+
+// Product - OrderItem
+Product.hasMany(OrderItem, {
+    foreignKey: {
+        name: 'productId',
+        field: 'product_id'
+    },
+    as: 'orderItems'
+});
+
+OrderItem.belongsTo(Product, {
+    foreignKey: {
+        name: 'productId',
+        field: 'product_id'
+    },
+    as: 'product'
+});
+
+module.exports = { Product, ProductImage, User, Cart, CartItem, Order, OrderItem };
+

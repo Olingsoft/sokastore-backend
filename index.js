@@ -39,6 +39,7 @@ const productRoutes = require('./routes/productRoute');
 const categoryRoutes = require('./routes/categoryRoutes');
 const stockRoutes = require('./routes/stockRoutes');
 const cartRoutes = require('./routes/cartRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -46,6 +47,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Sync database and start server
 sequelize.sync({ force: false }) // Set force: true to drop and recreate tables
