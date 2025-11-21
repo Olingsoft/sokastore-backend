@@ -10,10 +10,10 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-    origin: true, // Allow all origins in development
-    credentials: true, // Allow cookies to be sent cross-origin
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+  origin: true, // Allow all origins in development
+  credentials: true, // Allow cookies to be sent cross-origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
@@ -38,12 +38,14 @@ const userRoutes = require('./routes/usersRoutes');
 const productRoutes = require('./routes/productRoute');
 const categoryRoutes = require('./routes/categoryRoutes');
 const stockRoutes = require('./routes/stockRoutes');
+const cartRoutes = require('./routes/cartRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/stock', stockRoutes);
+app.use('/api/cart', cartRoutes);
 
 // Sync database and start server
 sequelize.sync({ force: false }) // Set force: true to drop and recreate tables

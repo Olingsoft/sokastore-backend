@@ -51,7 +51,7 @@ router.get("/", async (req, res) => {
         // Date range filter
         if (startDate || endDate) {
             whereClause.date = {};
-            if (startDate) whereClume.date[Op.gte] = new Date(startDate);
+            if (startDate) whereClause.date[Op.gte] = new Date(startDate);
             if (endDate) whereClause.date[Op.lte] = new Date(endDate);
         }
         
@@ -208,21 +208,34 @@ router.delete("/:id", async (req, res) => {
 router.get("/products/levels", async (req, res) => {
     try {
         const { minQuantity, maxQuantity } = req.query;
-        
-        const whereClause = {};
-        if (minQuantity) whereClume.stockQuantity = { [Op.gte]: parseFloat(minQuantity) };
-        if (maxQuantity) {
-            whereClause.stockQuantity = whereClause.stockQuantity || {};
-            whereClause.stockQuantity[Op.lte] = parseFloat(maxQuantity);
-        }
-        
-        const products = await Product.findAll({
-            where: whereClause,
-            attributes: ['id', 'name', 'sku', 'stockQuantity'],
-            order: [['name', 'ASC']]
+
+        const movements = await Stock.findAll({
+            attributes: ['productId', 'quantity', 'type']
         });
-        
-        res.json(products);
+
+        const totalsByProduct = {};
+        for (const movement of movements) {
+            const change = movement.type === 'in' ? movement.quantity : -movement.quantity;
+            const productId = movement.productId;
+            totalsByProduct[productId] = (totalsByProduct[productId] || 0) + change;
+        }
+
+        let result = Object.entries(totalsByProduct).map(([productId, quantity]) => ({
+            id: Number(productId),
+            stockQuantity: quantity,
+        }));
+
+        if (minQuantity) {
+            const min = parseFloat(minQuantity);
+            result = result.filter((item) => item.stockQuantity >= min);
+        }
+
+        if (maxQuantity) {
+            const max = parseFloat(maxQuantity);
+            result = result.filter((item) => item.stockQuantity <= max);
+        }
+
+        res.json(result);
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Failed to fetch stock levels" });

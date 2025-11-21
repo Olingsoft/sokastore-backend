@@ -206,6 +206,52 @@ router.get('/:id', async (req, res) => {
     }
 });
 
+
+// /api/products/related/:id
+
+// Get related products (same category, excluding current product)
+router.get('/related/:id', async (req, res) => {
+    try {
+        const currentProduct = await Product.findByPk(req.params.id);
+        
+        if (!currentProduct) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+
+        const relatedProducts = await Product.findAll({
+            where: {
+                category: currentProduct.category,
+                id: { [sequelize.Op.ne]: currentProduct.id }, // Exclude current product
+                isActive: true
+            },
+            include: [{
+                model: ProductImage,
+                as: 'images',
+                attributes: ['id', 'url', 'isPrimary', 'position'],
+                where: { isPrimary: true }, // Only get primary image for each product
+                required: false
+            }],
+            limit: 4, // Limit to 4 related products
+            order: sequelize.literal('random()') // Get random products from the same category
+        });
+
+        res.json({
+            success: true,
+            count: relatedProducts.length,
+            data: relatedProducts
+        });
+    } catch (error) {
+        console.error('Error fetching related products:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching related products'
+        });
+    }
+});
+
 // Update a product
 router.put('/:id', auth, async (req, res) => {
     const transaction = await sequelize.transaction();
