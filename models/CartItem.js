@@ -42,7 +42,8 @@ const CartItem = sequelize.define('CartItem', {
     }
 }, {
     tableName: 'cart_items',
-    timestamps: true
+    timestamps: true,
+    underscored: true
 });
 
 module.exports = CartItem;

@@ -29,8 +29,7 @@ const ProductImage = sequelize.define('ProductImage', {
     }
 }, {
     timestamps: true,
-    tableName: 'product_images',
-    underscored: true
+    tableName: 'product_images'
 });
 
 module.exports = ProductImage;

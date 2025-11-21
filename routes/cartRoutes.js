@@ -5,29 +5,28 @@ const auth = require('../middleware/auth');
 
 // Get user's cart
 router.get('/', auth, async (req, res) => {
+    console.log('GET /api/cart hit');
     try {
+        console.log('User from auth middleware:', req.user);
+        if (!req.user || !req.user.id) {
+            console.error('User ID missing in request');
+            return res.status(401).json({ message: 'User not authenticated correctly' });
+        }
+
+        console.log('Fetching cart for user:', req.user.id);
+
+        // First, find the cart without includes to avoid complex subquery issues
         let cart = await Cart.findOne({
             where: {
                 userId: req.user.id,
                 status: 'active'
-            },
-            include: [{
-                model: CartItem,
-                as: 'items',
-                include: [{
-                    model: Product,
-                    as: 'product',
-                    include: [{
-                        model: ProductImage,
-                        as: 'images',
-                        where: { isPrimary: true },
-                        required: false
-                    }]
-                }]
-            }]
+            }
         });
 
+        console.log('Cart found:', cart ? cart.id : 'No active cart');
+
         if (!cart) {
+            console.log('Creating new cart for user:', req.user.id);
             cart = await Cart.create({ userId: req.user.id });
             // Return empty cart structure if just created
             return res.json({
@@ -37,23 +36,44 @@ router.get('/', auth, async (req, res) => {
             });
         }
 
+        // Now fetch cart items separately with product details
+        const cartItems = await CartItem.findAll({
+            where: {
+                cartId: cart.id
+            },
+            include: [{
+                model: Product,
+                as: 'product',
+                include: [{
+                    model: ProductImage,
+                    as: 'images',
+                    required: false
+                }]
+            }]
+        });
+
+        console.log('Cart items count:', cartItems?.length || 0);
+
         // Calculate total amount
         let totalAmount = 0;
-        if (cart.items) {
-            totalAmount = cart.items.reduce((sum, item) => {
+        if (cartItems) {
+            totalAmount = cartItems.reduce((sum, item) => {
                 return sum + (parseFloat(item.price) * item.quantity);
             }, 0);
         }
 
+        console.log('Returning cart with', cartItems?.length || 0, 'items, total:', totalAmount);
+
         res.json({
             id: cart.id,
-            items: cart.items,
+            items: cartItems || [],
             totalAmount: totalAmount.toFixed(2)
         });
 
     } catch (error) {
-        console.error('Error fetching cart:', error);
-        res.status(500).json({ message: 'Server error' });
+        console.error('Error fetching cart - Full error:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 

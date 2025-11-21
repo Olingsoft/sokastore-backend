@@ -30,24 +30,36 @@ Cart.belongsTo(User, {
 
 // Cart - CartItem
 Cart.hasMany(CartItem, {
-    foreignKey: 'cartId',
+    foreignKey: {
+        name: 'cartId',
+        field: 'cart_id'
+    },
     as: 'items',
     onDelete: 'CASCADE'
 });
 
 CartItem.belongsTo(Cart, {
-    foreignKey: 'cartId',
+    foreignKey: {
+        name: 'cartId',
+        field: 'cart_id'
+    },
     as: 'cart'
 });
 
 // Product - CartItem
 Product.hasMany(CartItem, {
-    foreignKey: 'productId',
+    foreignKey: {
+        name: 'productId',
+        field: 'product_id'
+    },
     as: 'cartItems'
 });
 
 CartItem.belongsTo(Product, {
-    foreignKey: 'productId',
+    foreignKey: {
+        name: 'productId',
+        field: 'product_id'
+    },
     as: 'product'
 });
 
