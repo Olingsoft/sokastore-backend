@@ -39,6 +39,22 @@ const CartItem = sequelize.define('CartItem', {
     size: {
         type: DataTypes.STRING,
         allowNull: true
+    },
+    type: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'Product type (e.g., Replica, Authentic)'
+    },
+    customization: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        comment: 'Customization details (playerName, playerNumber, selectedBadge)'
+    },
+    customizationFee: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+        defaultValue: 0,
+        comment: 'Additional fee for customization'
     }
 }, {
     tableName: 'cart_items',

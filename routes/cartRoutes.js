@@ -54,11 +54,13 @@ router.get('/', auth, async (req, res) => {
 
         console.log('Cart items count:', cartItems?.length || 0);
 
-        // Calculate total amount
+        // Calculate total amount including customization fees
         let totalAmount = 0;
         if (cartItems) {
             totalAmount = cartItems.reduce((sum, item) => {
-                return sum + (parseFloat(item.price) * item.quantity);
+                const itemPrice = parseFloat(item.price) * item.quantity;
+                const customFee = parseFloat(item.customizationFee || 0) * item.quantity;
+                return sum + itemPrice + customFee;
             }, 0);
         }
 
@@ -80,7 +82,7 @@ router.get('/', auth, async (req, res) => {
 // Add item to cart
 router.post('/add', auth, async (req, res) => {
     try {
-        const { productId, quantity = 1, size } = req.body;
+        const { productId, quantity = 1, size, type, customization, customizationFee } = req.body;
 
         // Find product to get price
         const product = await Product.findByPk(productId);
@@ -97,12 +99,15 @@ router.post('/add', auth, async (req, res) => {
             defaults: { userId: req.user.id }
         });
 
-        // Check if item already exists in cart
+        // Check if item already exists in cart with same customization
+        // Items with different customizations should be separate cart items
         let cartItem = await CartItem.findOne({
             where: {
                 cartId: cart.id,
                 productId: productId,
-                size: size || null
+                size: size || null,
+                type: type || null,
+                customization: customization || null
             }
         });
 
@@ -111,13 +116,16 @@ router.post('/add', auth, async (req, res) => {
             cartItem.quantity += parseInt(quantity);
             await cartItem.save();
         } else {
-            // Create new item
+            // Create new item with customization
             cartItem = await CartItem.create({
                 cartId: cart.id,
                 productId: productId,
                 quantity: parseInt(quantity),
                 price: product.price, // Store current price
-                size: size || null
+                size: size || null,
+                type: type || null,
+                customization: customization || null,
+                customizationFee: customizationFee || 0
             });
         }
 

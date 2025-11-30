@@ -1,6 +1,6 @@
 const express = require('express');
 const sequelize = require('./database/sequelize');
-const User = require('./models/User');
+const User = require('./models/User'); // may be used elsewhere
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
@@ -49,8 +49,8 @@ app.use('/api/stock', stockRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 
-// Sync database and start server
-sequelize.sync({ force: false }) // Set force: true to drop and recreate tables
+// Sync database and start server (alter:true adds missing columns)
+sequelize.sync({ alter: true })
   .then(() => {
     console.log('Database synced');
     app.listen(PORT, () => {

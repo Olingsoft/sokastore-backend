@@ -74,7 +74,9 @@ router.post('/create', auth, async (req, res) => {
         const orderItems = [];
 
         for (const cartItem of cartItems) {
-            const itemSubtotal = parseFloat(cartItem.price) * cartItem.quantity;
+            const itemPrice = parseFloat(cartItem.price);
+            const customFee = parseFloat(cartItem.customizationFee || 0);
+            const itemSubtotal = (itemPrice + customFee) * cartItem.quantity;
             subtotal += itemSubtotal;
 
             // Get primary image
@@ -178,6 +180,23 @@ router.get('/', auth, async (req, res) => {
     }
 });
 
+// Get all orders (Admin) - MUST be before /:id route
+router.get('/all', auth, async (req, res) => {
+    try {
+        const orders = await Order.findAll({
+            include: [{
+                model: OrderItem,
+                as: 'items'
+            }],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json({ orders });
+    } catch (error) {
+        console.error('Error fetching all orders:', error);
+        res.status(500).json({ message: 'Failed to fetch orders' });
+    }
+});
+
 // Get single order by ID
 router.get('/:id', auth, async (req, res) => {
     try {
@@ -204,34 +223,34 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // Update payment status (for payment gateway callbacks)
+// Update payment status and order status (Admin/System)
 router.put('/:id/payment-status', auth, async (req, res) => {
     try {
-        const { paymentStatus, transactionId } = req.body;
+        const { paymentStatus, transactionId, orderStatus } = req.body;
 
-        const order = await Order.findOne({
-            where: {
-                id: req.params.id,
-                userId: req.user.id
-            }
-        });
+        const order = await Order.findByPk(req.params.id);
 
         if (!order) {
             return res.status(404).json({ message: 'Order not found' });
         }
 
-        const updateData = { paymentStatus };
+        const updateData = {};
+        if (paymentStatus) updateData.paymentStatus = paymentStatus;
         if (transactionId) updateData.transactionId = transactionId;
-        if (paymentStatus === 'paid') {
+        if (orderStatus) updateData.orderStatus = orderStatus;
+
+        // Auto-update logic if only payment status is sent
+        if (paymentStatus === 'paid' && !orderStatus) {
             updateData.paidAt = new Date();
-            updateData.orderStatus = 'confirmed';
+            // Keep orderStatus as 'pending' by default - admin will update it manually
         }
 
         await order.update(updateData);
 
-        res.json({ message: 'Payment status updated', order });
+        res.json({ message: 'Order updated successfully', order });
     } catch (error) {
-        console.error('Error updating payment status:', error);
-        res.status(500).json({ message: 'Failed to update payment status' });
+        console.error('Error updating order:', error);
+        res.status(500).json({ message: 'Failed to update order' });
     }
 });
 
@@ -261,6 +280,25 @@ router.put('/:id/cancel', auth, async (req, res) => {
     } catch (error) {
         console.error('Error cancelling order:', error);
         res.status(500).json({ message: 'Failed to cancel order' });
+    }
+});
+
+// Delete order
+router.delete('/:id', auth, async (req, res) => {
+    try {
+        const order = await Order.findByPk(req.params.id);
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+
+        // Delete associated items
+        await OrderItem.destroy({ where: { orderId: order.id } });
+        await order.destroy();
+
+        res.json({ message: 'Order deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting order:', error);
+        res.status(500).json({ message: 'Failed to delete order' });
     }
 });
 
