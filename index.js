@@ -40,6 +40,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const stockRoutes = require('./routes/stockRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const badgeRoutes = require('./routes/badgeRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -48,6 +49,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/badges', badgeRoutes);
 
 // Sync database and start server (alter:true adds missing columns)
 sequelize.sync({ alter: true })
