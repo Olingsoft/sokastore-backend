@@ -5,7 +5,7 @@ const Badge = require('../models/Badge');
 // Get all badges
 router.get('/', async (req, res) => {
     try {
-        const badges = await Badge.findAll();
+        const badges = await Badge.find();
         res.json(badges);
     } catch (error) {
         console.error('Error fetching badges:', error);
@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
 // Get single badge by ID
 router.get('/:id', async (req, res) => {
     try {
-        const badge = await Badge.findByPk(req.params.id);
+        const badge = await Badge.findById(req.params.id);
         if (!badge) {
             return res.status(404).json({ message: 'Badge not found' });
         }
@@ -45,7 +45,7 @@ router.post('/', async (req, res) => {
         res.status(201).json(newBadge);
     } catch (error) {
         console.error('Error creating badge:', error);
-        if (error.name === 'SequelizeUniqueConstraintError') {
+        if (error.code === 11000) {
             return res.status(400).json({ message: 'Badge name already exists' });
         }
         res.status(500).json({ message: 'Server error creating badge' });
@@ -56,7 +56,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const { name, icon, description } = req.body;
-        const badge = await Badge.findByPk(req.params.id);
+        const badge = await Badge.findById(req.params.id);
 
         if (!badge) {
             return res.status(404).json({ message: 'Badge not found' });
@@ -71,7 +71,7 @@ router.put('/:id', async (req, res) => {
         res.json(badge);
     } catch (error) {
         console.error('Error updating badge:', error);
-        if (error.name === 'SequelizeUniqueConstraintError') {
+        if (error.code === 11000) {
             return res.status(400).json({ message: 'Badge name already exists' });
         }
         res.status(500).json({ message: 'Server error updating badge' });
@@ -81,13 +81,13 @@ router.put('/:id', async (req, res) => {
 // Delete a badge
 router.delete('/:id', async (req, res) => {
     try {
-        const badge = await Badge.findByPk(req.params.id);
+        const badge = await Badge.findById(req.params.id);
 
         if (!badge) {
             return res.status(404).json({ message: 'Badge not found' });
         }
 
-        await badge.destroy();
+        await badge.deleteOne();
         res.json({ message: 'Badge deleted successfully' });
     } catch (error) {
         console.error('Error deleting badge:', error);

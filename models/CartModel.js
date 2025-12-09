@@ -1,34 +1,32 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../database/sequelize');
+const mongoose = require('mongoose');
 
-const Cart = sequelize.define('Cart', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
+const cartSchema = new mongoose.Schema({
     userId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
     status: {
-        type: DataTypes.ENUM('active', 'completed', 'abandoned'),
-        defaultValue: 'active',
-        allowNull: false
+        type: String,
+        enum: ['active', 'completed', 'abandoned'],
+        default: 'active',
+        required: true
     },
     totalAmount: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.00,
-        allowNull: false
+        type: Number,
+        default: 0
     }
 }, {
-    tableName: 'carts',
     timestamps: true,
-    underscored: true
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
-module.exports = Cart;
+// Virtual for items
+cartSchema.virtual('items', {
+    ref: 'CartItem',
+    localField: '_id',
+    foreignField: 'cartId'
+});
+
+module.exports = mongoose.model('Cart', cartSchema);

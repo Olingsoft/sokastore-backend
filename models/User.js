@@ -1,54 +1,40 @@
-const { Sequelize, DataTypes } = require('sequelize');
-const sequelize = require('../database/sequelize');
+const mongoose = require('mongoose');
 
-const User = sequelize.define('User', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
+const userSchema = new mongoose.Schema({
     name: {
-        type: DataTypes.STRING,
-        allowNull: false,
+        type: String,
+        required: [true, 'Name is required'],
         trim: true
     },
     email: {
-        type: DataTypes.STRING,
-        allowNull: false,
+        type: String,
+        required: [true, 'Email is required'],
         unique: true,
         trim: true,
         lowercase: true,
-        validate: {
-            isEmail: true
-        }
+        match: [
+            /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+            'Please fill a valid email address'
+        ]
     },
     role: {
-        type: DataTypes.ENUM('customer', 'admin'),
-        allowNull: false,
-        defaultValue: 'customer'
+        type: String,
+        enum: ['customer', 'admin'],
+        default: 'customer',
+        required: true
     },
     phone: {
-        type: DataTypes.STRING,
-        allowNull: false,
+        type: String,
+        required: [true, 'Phone number is required'],
         unique: true,
         trim: true
     },
     password: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW
-    },
-    updatedAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-        onUpdate: DataTypes.NOW
+        type: String,
+        required: [true, 'Password is required']
     }
 }, {
-    tableName: 'users',
     timestamps: true
 });
 
-module.exports = User;
+module.exports = mongoose.model('User', userSchema);

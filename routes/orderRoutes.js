@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Order, OrderItem, Cart, CartItem, Product, ProductImage } = require('../models/associations');
+const { Order, OrderItem, Cart, CartItem, Product } = require('../models');
 const auth = require('../middleware/auth');
 
 // Helper function to generate unique order number
@@ -12,8 +12,6 @@ const generateOrderNumber = () => {
 
 // Create new order from cart
 router.post('/create', auth, async (req, res) => {
-    const transaction = await Order.sequelize.transaction();
-
     try {
         const {
             customerName,
@@ -35,57 +33,47 @@ router.post('/create', auth, async (req, res) => {
             });
         }
 
-        // Get user's active cart (step 1: find cart)
+        // Get user's active cart
         const cart = await Cart.findOne({
-            where: {
-                userId: req.user.id,
-                status: 'active'
-            },
-            transaction
+            userId: req.user.id,
+            status: 'active'
         });
 
         if (!cart) {
-            await transaction.rollback();
             return res.status(400).json({ message: 'No active cart found' });
         }
 
-        // Step 2: Fetch cart items separately to avoid Sequelize query bug
-        const cartItems = await CartItem.findAll({
-            where: { cartId: cart.id },
-            include: [{
-                model: Product,
-                as: 'product',
-                include: [{
-                    model: ProductImage,
-                    as: 'images',
-                    required: false
-                }]
-            }],
-            transaction
-        });
+        // Fetch cart items with product details
+        const cartItems = await CartItem.find({ cartId: cart._id })
+            .populate({
+                path: 'productId',
+                populate: { path: 'images' }
+            });
 
         if (!cartItems || cartItems.length === 0) {
-            await transaction.rollback();
             return res.status(400).json({ message: 'Cart is empty' });
         }
 
         // Calculate totals
         let subtotal = 0;
-        const orderItems = [];
+        const orderItemsData = [];
 
         for (const cartItem of cartItems) {
-            const itemPrice = parseFloat(cartItem.price);
-            const customFee = parseFloat(cartItem.customizationFee || 0);
+            const product = cartItem.productId; // Populated product
+            if (!product) continue; // Skip if product doesn't exist
+
+            const itemPrice = cartItem.price;
+            const customFee = cartItem.customizationFee || 0;
             const itemSubtotal = (itemPrice + customFee) * cartItem.quantity;
             subtotal += itemSubtotal;
 
             // Get primary image
-            const primaryImage = cartItem.product?.images?.find(img => img.isPrimary)?.url ||
-                cartItem.product?.images?.[0]?.url || null;
+            const primaryImage = product.images?.find(img => img.isPrimary)?.url ||
+                product.images?.[0]?.url || null;
 
-            orderItems.push({
-                productId: cartItem.productId,
-                productName: cartItem.product?.name || 'Unknown Product',
+            orderItemsData.push({
+                productId: product._id,
+                productName: product.name,
                 productImage: primaryImage,
                 quantity: cartItem.quantity,
                 price: cartItem.price,
@@ -119,32 +107,25 @@ router.post('/create', auth, async (req, res) => {
             paymentPhone: paymentPhone || customerPhone,
             orderStatus: 'pending',
             notes: notes || null
-        }, { transaction });
+        });
 
         // Create order items
-        for (const item of orderItems) {
-            await OrderItem.create({
-                orderId: order.id,
+        const orderItemsPromises = orderItemsData.map(item => {
+            return OrderItem.create({
+                orderId: order._id,
                 ...item
-            }, { transaction });
-        }
+            });
+        });
+        await Promise.all(orderItemsPromises);
 
         // Mark cart as completed and clear items
-        await cart.update({ status: 'completed' }, { transaction });
-        await CartItem.destroy({
-            where: { cartId: cart.id },
-            transaction
-        });
-
-        await transaction.commit();
+        cart.status = 'completed';
+        await cart.save();
+        await CartItem.deleteMany({ cartId: cart._id });
 
         // Fetch complete order with items
-        const completeOrder = await Order.findByPk(order.id, {
-            include: [{
-                model: OrderItem,
-                as: 'items'
-            }]
-        });
+        // Since items are virtual, we can populate them
+        const completeOrder = await Order.findById(order._id).populate('items');
 
         res.status(201).json({
             message: 'Order created successfully',
@@ -152,7 +133,6 @@ router.post('/create', auth, async (req, res) => {
         });
 
     } catch (error) {
-        await transaction.rollback();
         console.error('Error creating order:', error);
         res.status(500).json({
             message: 'Failed to create order',
@@ -164,14 +144,9 @@ router.post('/create', auth, async (req, res) => {
 // Get user's orders
 router.get('/', auth, async (req, res) => {
     try {
-        const orders = await Order.findAll({
-            where: { userId: req.user.id },
-            include: [{
-                model: OrderItem,
-                as: 'items'
-            }],
-            order: [['createdAt', 'DESC']]
-        });
+        const orders = await Order.find({ userId: req.user.id })
+            .populate('items')
+            .sort({ createdAt: -1 });
 
         res.json({ orders });
     } catch (error) {
@@ -180,16 +155,12 @@ router.get('/', auth, async (req, res) => {
     }
 });
 
-// Get all orders (Admin) - MUST be before /:id route
+// Get all orders (Admin)
 router.get('/all', auth, async (req, res) => {
     try {
-        const orders = await Order.findAll({
-            include: [{
-                model: OrderItem,
-                as: 'items'
-            }],
-            order: [['createdAt', 'DESC']]
-        });
+        const orders = await Order.find()
+            .populate('items')
+            .sort({ createdAt: -1 });
         res.json({ orders });
     } catch (error) {
         console.error('Error fetching all orders:', error);
@@ -201,15 +172,9 @@ router.get('/all', auth, async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
     try {
         const order = await Order.findOne({
-            where: {
-                id: req.params.id,
-                userId: req.user.id
-            },
-            include: [{
-                model: OrderItem,
-                as: 'items'
-            }]
-        });
+            _id: req.params.id,
+            userId: req.user.id
+        }).populate('items');
 
         if (!order) {
             return res.status(404).json({ message: 'Order not found' });
@@ -222,30 +187,27 @@ router.get('/:id', auth, async (req, res) => {
     }
 });
 
-// Update payment status (for payment gateway callbacks)
 // Update payment status and order status (Admin/System)
 router.put('/:id/payment-status', auth, async (req, res) => {
     try {
         const { paymentStatus, transactionId, orderStatus } = req.body;
 
-        const order = await Order.findByPk(req.params.id);
+        const order = await Order.findById(req.params.id);
 
         if (!order) {
             return res.status(404).json({ message: 'Order not found' });
         }
 
-        const updateData = {};
-        if (paymentStatus) updateData.paymentStatus = paymentStatus;
-        if (transactionId) updateData.transactionId = transactionId;
-        if (orderStatus) updateData.orderStatus = orderStatus;
+        if (paymentStatus) order.paymentStatus = paymentStatus;
+        if (transactionId) order.transactionId = transactionId;
+        if (orderStatus) order.orderStatus = orderStatus;
 
         // Auto-update logic if only payment status is sent
         if (paymentStatus === 'paid' && !orderStatus) {
-            updateData.paidAt = new Date();
-            // Keep orderStatus as 'pending' by default - admin will update it manually
+            order.paidAt = new Date();
         }
 
-        await order.update(updateData);
+        await order.save();
 
         res.json({ message: 'Order updated successfully', order });
     } catch (error) {
@@ -258,10 +220,8 @@ router.put('/:id/payment-status', auth, async (req, res) => {
 router.put('/:id/cancel', auth, async (req, res) => {
     try {
         const order = await Order.findOne({
-            where: {
-                id: req.params.id,
-                userId: req.user.id
-            }
+            _id: req.params.id,
+            userId: req.user.id
         });
 
         if (!order) {
@@ -274,7 +234,8 @@ router.put('/:id/cancel', auth, async (req, res) => {
             });
         }
 
-        await order.update({ orderStatus: 'cancelled' });
+        order.orderStatus = 'cancelled';
+        await order.save();
 
         res.json({ message: 'Order cancelled successfully', order });
     } catch (error) {
@@ -286,14 +247,14 @@ router.put('/:id/cancel', auth, async (req, res) => {
 // Delete order
 router.delete('/:id', auth, async (req, res) => {
     try {
-        const order = await Order.findByPk(req.params.id);
+        const order = await Order.findById(req.params.id);
         if (!order) {
             return res.status(404).json({ message: 'Order not found' });
         }
 
         // Delete associated items
-        await OrderItem.destroy({ where: { orderId: order.id } });
-        await order.destroy();
+        await OrderItem.deleteMany({ orderId: order._id });
+        await order.deleteOne();
 
         res.json({ message: 'Order deleted successfully' });
     } catch (error) {

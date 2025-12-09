@@ -1,86 +1,62 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../database/sequelize');
+const mongoose = require('mongoose');
 
-const Product = sequelize.define('Product', {
+const productSchema = new mongoose.Schema({
     name: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        validate: {
-            notEmpty: {
-                msg: 'Product name is required'
-            }
-        }
+        type: String,
+        required: [true, 'Product name is required'],
+        trim: true
     },
     price: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        validate: {
-            isDecimal: {
-                msg: 'Price must be a valid number'
-            },
-            min: {
-                args: [0],
-                msg: 'Price must be a positive number'
-            }
-        }
+        type: Number,
+        required: [true, 'Price is required'],
+        min: [0, 'Price must be a positive number']
     },
     category: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        validate: {
-            notEmpty: {
-                msg: 'Category is required'
-            }
-        }
+        type: String,
+        required: [true, 'Category is required'],
+        uppercase: true,
+        trim: true
     },
     size: {
-        type: DataTypes.STRING(20),
-        allowNull: true,
-        validate: {
-            isIn: {
-                args: [['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'One Size', null]],
-                msg: 'Invalid size. Must be one of: XS, S, M, L, XL, XXL, XXXL, One Size, or empty'
-            }
+        type: String,
+        trim: true,
+        enum: {
+            values: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'One Size', null],
+            message: 'Invalid size'
         }
     },
     description: {
-        type: DataTypes.TEXT,
-        allowNull: false,
-        validate: {
-            notEmpty: {
-                msg: 'Description is required'
-            }
-        }
+        type: String,
+        required: [true, 'Description is required']
     },
     hasCustomization: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false
+        type: Boolean,
+        default: false
     },
     customizationDetails: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        default: null
+    },
+    stockQuantity: {
+        type: Number,
+        default: 0
     },
     isActive: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true
+        type: Boolean,
+        default: true
     }
 }, {
-    tableName: 'products',
     timestamps: true,
-    underscored: false,
-    paranoid: true,
-    defaultScope: {
-        where: {
-            isActive: true
-        }
-    },
-    scopes: {
-        withInactive: {
-            where: {
-                isActive: true
-            }
-        }
-    }
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
-module.exports = Product;
+// Virtual for images (referenced in a separate collection)
+productSchema.virtual('images', {
+    ref: 'ProductImage',
+    localField: '_id',
+    foreignField: 'productId',
+    options: { sort: { position: 1 } } // Sort by position ascending
+});
+
+module.exports = mongoose.model('Product', productSchema);

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Product, ProductImage, sequelize } = require('../models');
+const { Product, ProductImage } = require('../models');
 const auth = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
@@ -27,7 +27,7 @@ const fileFilter = (req, file, cb) => {
     const filetypes = /jpeg|jpg|png/;
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = filetypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
         return cb(null, true);
     } else {
@@ -60,20 +60,18 @@ const handleFileUpload = (req, res) => {
 
 // Create a new product with multiple images
 router.post('/', auth, async (req, res) => {
-    const transaction = await sequelize.transaction();
-    
     try {
         await handleFileUpload(req, res);
-        
+
         const { name, price, size, category, description, hasCustomization, customizationDetails } = req.body;
-        
+
         // Validate required fields
         if (!name || !price || !category || !description) {
             throw new Error('Missing required fields');
         }
 
         // Create the product
-        const product = await Product.create({
+        const product = new Product({
             name,
             price: parseFloat(price),
             size: size || null,
@@ -81,7 +79,9 @@ router.post('/', auth, async (req, res) => {
             description,
             hasCustomization: hasCustomization === 'true',
             customizationDetails: hasCustomization === 'true' ? customizationDetails : null
-        }, { transaction });
+        });
+
+        await product.save();
 
         // Process uploaded files
         if (req.files && req.files.length > 0) {
@@ -90,41 +90,25 @@ router.post('/', auth, async (req, res) => {
                     url: `/uploads/products/${path.basename(file.path)}`,
                     isPrimary: index === 0,
                     position: index,
-                    productId: product.id
-                }, { transaction });
+                    productId: product._id
+                });
             });
-            
+
             await Promise.all(imagePromises);
         }
 
-        // Fetch the product with its images within the same transaction
-        const productWithImages = await Product.findByPk(product.id, {
-            include: [{ 
-                model: ProductImage, 
-                as: 'images',
-                attributes: ['id', 'url', 'isPrimary', 'position'],
-                order: [['position', 'ASC']]
-            }],
-            transaction
-        });
-
-        // If everything is successful, commit the transaction
-        await transaction.commit();
+        // Fetch the product with its images
+        const productWithImages = await Product.findById(product._id).populate('images');
 
         res.status(201).json({
             success: true,
             message: 'Product created successfully',
             product: productWithImages
         });
-        
+
     } catch (error) {
-        // If anything goes wrong, rollback the transaction
-        if (transaction && !transaction.finished) {
-            await transaction.rollback();
-        }
-        
         console.error('Error creating product:', error);
-        
+
         // Clean up uploaded files if there was an error
         if (req.files && req.files.length > 0) {
             req.files.forEach(file => {
@@ -134,14 +118,12 @@ router.post('/', auth, async (req, res) => {
             });
         }
 
-        const statusCode = error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError' 
-            ? 400 
-            : 500;
-            
+        const statusCode = error.name === 'ValidationError' ? 400 : 500;
+
         res.status(statusCode).json({
             success: false,
             message: error.message || 'Error creating product',
-            errors: error.errors ? error.errors.map(e => e.message) : [error.message]
+            errors: error.errors ? Object.values(error.errors).map(e => e.message) : [error.message]
         });
     }
 });
@@ -149,16 +131,9 @@ router.post('/', auth, async (req, res) => {
 // Get all products with their images
 router.get('/', async (req, res) => {
     try {
-        const products = await Product.findAll({
-            where: { isActive: true },
-            include: [{
-                model: ProductImage,
-                as: 'images',
-                attributes: ['id', 'url', 'isPrimary', 'position'],
-                order: [['position', 'ASC']]
-            }],
-            order: [['createdAt', 'DESC']]
-        });
+        const products = await Product.find({ isActive: true })
+            .populate('images')
+            .sort({ createdAt: -1 });
 
         res.json({
             success: true,
@@ -177,14 +152,7 @@ router.get('/', async (req, res) => {
 // Get single product by ID with images
 router.get('/:id', async (req, res) => {
     try {
-        const product = await Product.findByPk(req.params.id, {
-            include: [{
-                model: ProductImage,
-                as: 'images',
-                attributes: ['id', 'url', 'isPrimary', 'position'],
-                order: [['position', 'ASC']]
-            }]
-        });
+        const product = await Product.findById(req.params.id).populate('images');
 
         if (!product) {
             return res.status(404).json({
@@ -206,14 +174,11 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-
-// /api/products/related/:id
-
-// Get related products (same category, excluding current product)
+// Get related products
 router.get('/related/:id', async (req, res) => {
     try {
-        const currentProduct = await Product.findByPk(req.params.id);
-        
+        const currentProduct = await Product.findById(req.params.id);
+
         if (!currentProduct) {
             return res.status(404).json({
                 success: false,
@@ -221,21 +186,22 @@ router.get('/related/:id', async (req, res) => {
             });
         }
 
-        const relatedProducts = await Product.findAll({
-            where: {
-                category: currentProduct.category,
-                id: { [sequelize.Op.ne]: currentProduct.id }, // Exclude current product
-                isActive: true
+        // MongoDB aggregation for random sample or find with limit
+        const relatedProducts = await Product.aggregate([
+            {
+                $match: {
+                    category: currentProduct.category,
+                    _id: { $ne: currentProduct._id },
+                    isActive: true
+                }
             },
-            include: [{
-                model: ProductImage,
-                as: 'images',
-                attributes: ['id', 'url', 'isPrimary', 'position'],
-                where: { isPrimary: true }, // Only get primary image for each product
-                required: false
-            }],
-            limit: 4, // Limit to 4 related products
-            order: sequelize.literal('random()') // Get random products from the same category
+            { $sample: { size: 4 } }
+        ]);
+
+        // Populate images for aggregated results
+        await Product.populate(relatedProducts, {
+            path: 'images',
+            match: { isPrimary: true }
         });
 
         res.json({
@@ -254,26 +220,23 @@ router.get('/related/:id', async (req, res) => {
 
 // Update a product
 router.put('/:id', auth, async (req, res) => {
-    const transaction = await sequelize.transaction();
-    
     try {
         await handleFileUpload(req, res);
-        
-        const { 
-            name, 
-            price, 
-            size, 
-            category, 
-            description, 
-            hasCustomization, 
+
+        const {
+            name,
+            price,
+            size,
+            category,
+            description,
+            hasCustomization,
             customizationDetails,
             removeImages = '[]'
         } = req.body;
 
-        const product = await Product.findByPk(req.params.id, { transaction });
-        
+        let product = await Product.findById(req.params.id);
+
         if (!product) {
-            await transaction.rollback();
             return res.status(404).json({
                 success: false,
                 message: 'Product not found'
@@ -281,73 +244,53 @@ router.put('/:id', auth, async (req, res) => {
         }
 
         // Update product details
-        await product.update({
-            name,
-            price: parseFloat(price),
-            size: size || null,
-            category: category.toUpperCase(),
-            description,
-            hasCustomization: hasCustomization === 'true',
-            customizationDetails: hasCustomization === 'true' ? customizationDetails : null
-        }, { transaction });
+        product.name = name || product.name;
+        product.price = price ? parseFloat(price) : product.price;
+        product.size = size || null; // Explicit null if passed empty
+        product.category = category ? category.toUpperCase() : product.category;
+        product.description = description || product.description;
+        product.hasCustomization = hasCustomization === 'true';
+        product.customizationDetails = hasCustomization === 'true' ? customizationDetails : null;
+
+        await product.save();
 
         // Handle image removal
         const imagesToRemove = JSON.parse(removeImages);
         if (imagesToRemove && imagesToRemove.length > 0) {
-            await ProductImage.destroy({
-                where: {
-                    id: imagesToRemove,
-                    productId: product.id
-                },
-                transaction
+            await ProductImage.deleteMany({
+                _id: { $in: imagesToRemove },
+                productId: product._id
             });
         }
 
         // Process new uploaded files
         if (req.files && req.files.length > 0) {
-            const currentImages = await ProductImage.findAll({
-                where: { productId: product.id },
-                transaction
-            });
+            const currentImagesCount = await ProductImage.countDocuments({ productId: product._id });
 
             const imagePromises = req.files.map((file, index) => {
                 return ProductImage.create({
                     url: `/uploads/products/${path.basename(file.path)}`,
-                    isPrimary: currentImages.length === 0 && index === 0, // Set as primary if no images exist
-                    position: currentImages.length + index,
-                    productId: product.id
-                }, { transaction });
+                    isPrimary: currentImagesCount === 0 && index === 0,
+                    position: currentImagesCount + index,
+                    productId: product._id
+                });
             });
-            
+
             await Promise.all(imagePromises);
         }
 
         // Fetch the updated product with its images
-        const updatedProduct = await Product.findByPk(product.id, {
-            include: [{
-                model: ProductImage,
-                as: 'images',
-                attributes: ['id', 'url', 'isPrimary', 'position'],
-                order: [['position', 'ASC']]
-            }],
-            transaction
-        });
-
-        await transaction.commit();
+        const updatedProduct = await Product.findById(product._id).populate('images');
 
         res.json({
             success: true,
             message: 'Product updated successfully',
             product: updatedProduct
         });
-        
+
     } catch (error) {
-        if (transaction && !transaction.finished) {
-            await transaction.rollback();
-        }
-        
         console.error('Error updating product:', error);
-        
+
         // Clean up uploaded files if there was an error
         if (req.files && req.files.length > 0) {
             req.files.forEach(file => {
@@ -357,52 +300,41 @@ router.put('/:id', auth, async (req, res) => {
             });
         }
 
-        const statusCode = error.name === 'SequelizeValidationError' ? 400 : 500;
+        const statusCode = error.name === 'ValidationError' ? 400 : 500;
         res.status(statusCode).json({
             success: false,
             message: error.message || 'Error updating product',
-            errors: error.errors ? error.errors.map(e => e.message) : [error.message]
+            errors: error.errors ? Object.values(error.errors).map(e => e.message) : [error.message]
         });
     }
 });
 
 // Delete a product
 router.delete('/:id', auth, async (req, res) => {
-    const transaction = await sequelize.transaction();
-    
     try {
-        const product = await Product.findByPk(req.params.id, {
-            include: [{ model: ProductImage, as: 'images' }],
-            transaction
-        });
+        const product = await Product.findById(req.params.id);
 
         if (!product) {
-            await transaction.rollback();
             return res.status(404).json({
                 success: false,
                 message: 'Product not found'
             });
         }
 
-        // Soft delete the product
-        await product.update({ isActive: false }, { transaction });
+        // Soft delete
+        product.isActive = false;
+        await product.save();
 
-        // Or hard delete with:
-        // await product.destroy({ transaction });
-        // await ProductImage.destroy({ where: { productId: product.id }, transaction });
-
-        await transaction.commit();
+        // Hard delete equivalent (commented out as per original)
+        // await product.deleteOne();
+        // await ProductImage.deleteMany({ productId: product._id });
 
         res.json({
             success: true,
             message: 'Product deleted successfully'
         });
-        
+
     } catch (error) {
-        if (transaction && !transaction.finished) {
-            await transaction.rollback();
-        }
-        
         console.error('Error deleting product:', error);
         res.status(500).json({
             success: false,
@@ -413,52 +345,35 @@ router.delete('/:id', auth, async (req, res) => {
 
 // Set primary image for a product
 router.put('/:id/primary-image/:imageId', auth, async (req, res) => {
-    const transaction = await sequelize.transaction();
-    
     try {
         const { id, imageId } = req.params;
 
         // Reset all images' isPrimary to false
-        await ProductImage.update(
-            { isPrimary: false },
-            { 
-                where: { productId: id },
-                transaction
-            }
+        await ProductImage.updateMany(
+            { productId: id },
+            { isPrimary: false }
         );
 
         // Set the selected image as primary
-        const [updated] = await ProductImage.update(
+        const updated = await ProductImage.findOneAndUpdate(
+            { _id: imageId, productId: id },
             { isPrimary: true },
-            { 
-                where: { 
-                    id: imageId,
-                    productId: id 
-                },
-                transaction
-            }
+            { new: true }
         );
 
         if (!updated) {
-            await transaction.rollback();
             return res.status(404).json({
                 success: false,
                 message: 'Image not found'
             });
         }
 
-        await transaction.commit();
-
         res.json({
             success: true,
             message: 'Primary image updated successfully'
         });
-        
+
     } catch (error) {
-        if (transaction && !transaction.finished) {
-            await transaction.rollback();
-        }
-        
         console.error('Error setting primary image:', error);
         res.status(500).json({
             success: false,

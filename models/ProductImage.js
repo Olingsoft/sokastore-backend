@@ -1,35 +1,25 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../database/sequelize');
+const mongoose = require('mongoose');
 
-const ProductImage = sequelize.define('ProductImage', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
+const productImageSchema = new mongoose.Schema({
     productId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: 'products',
-            key: 'id'
-        }
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
     },
     url: {
-        type: DataTypes.STRING,
-        allowNull: false
+        type: String,
+        required: true
     },
     isPrimary: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false
+        type: Boolean,
+        default: false
     },
     position: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0
+        type: Number,
+        default: 0
     }
 }, {
-    timestamps: true,
-    tableName: 'product_images'
+    timestamps: true
 });
 
-module.exports = ProductImage;
+module.exports = mongoose.model('ProductImage', productImageSchema);

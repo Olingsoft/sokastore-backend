@@ -1,11 +1,12 @@
-const sequelize = require('../database/sequelize');
-const { Product, ProductImage } = require('./associations');
-
-// Import all models
-const db = {
-  Product,
-  ProductImage,
-  sequelize
+module.exports = {
+  User: require('./User'),
+  Product: require('./Product'),
+  ProductImage: require('./ProductImage'),
+  Stock: require('./Stock'),
+  Cart: require('./CartModel'),
+  CartItem: require('./CartItem'),
+  Order: require('./Order'),
+  OrderItem: require('./OrderItem'),
+  Category: require('./Category'),
+  Badge: require('./Badge')
 };
-
-module.exports = db;

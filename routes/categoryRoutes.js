@@ -1,29 +1,26 @@
-// category routes
-
 const express = require("express");
 const router = express.Router();
-const { Op } = require('sequelize');
 const Category = require("../models/Category");
 
 // Get all categories with pagination and search
 router.get("/", async (req, res) => {
     try {
         const { page = 1, limit = 10, search = '' } = req.query;
-        const offset = (page - 1) * limit;
-        
-        const whereClause = search ? {
-            [Op.or]: [
-                { name: { [Op.iLike]: `%${search}%` } },
-                { slug: { [Op.iLike]: `%${search}%` } }
-            ]
-        } : {};
+        const skip = (page - 1) * limit;
 
-        const { count, rows: categories } = await Category.findAndCountAll({
-            where: whereClause,
-            limit: parseInt(limit),
-            offset: parseInt(offset),
-            order: [['createdAt', 'DESC']]
-        });
+        const query = {};
+        if (search) {
+            query.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { slug: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const count = await Category.countDocuments(query);
+        const categories = await Category.find(query)
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit))
+            .skip(skip);
 
         res.json({
             total: count,
@@ -40,7 +37,7 @@ router.get("/", async (req, res) => {
 // Get category by ID
 router.get("/:id", async (req, res) => {
     try {
-        const category = await Category.findByPk(req.params.id);
+        const category = await Category.findById(req.params.id);
         if (!category) {
             return res.status(404).json({ message: "Category not found" });
         }
@@ -54,14 +51,12 @@ router.get("/:id", async (req, res) => {
 // Get category by slug
 router.get("/slug/:slug", async (req, res) => {
     try {
-        const category = await Category.findOne({ 
-            where: { slug: req.params.slug } 
-        });
-        
+        const category = await Category.findOne({ slug: req.params.slug });
+
         if (!category) {
             return res.status(404).json({ message: "Category not found" });
         }
-        
+
         res.json(category);
     } catch (err) {
         console.error(err);
@@ -73,16 +68,16 @@ router.get("/slug/:slug", async (req, res) => {
 router.post("/", async (req, res) => {
     try {
         const { name } = req.body;
-        
+
         if (!name) {
             return res.status(400).json({ message: "Name is required" });
         }
-        
+
         const category = await Category.create({ name });
         res.status(201).json(category);
     } catch (err) {
         console.error(err);
-        if (err.name === 'SequelizeUniqueConstraintError') {
+        if (err.code === 11000) { // Duplicate key error
             return res.status(400).json({ message: "Category with this name already exists" });
         }
         res.status(500).json({ message: "Internal server error" });
@@ -93,22 +88,22 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
     try {
         const { name } = req.body;
-        const category = await Category.findByPk(req.params.id);
-        
+        const category = await Category.findById(req.params.id);
+
         if (!category) {
             return res.status(404).json({ message: "Category not found" });
         }
-        
+
         // Only update if name is provided and different
         if (name && name !== category.name) {
             category.name = name;
-            await category.save(); // This will trigger the beforeValidate hook
+            await category.save(); // This will trigger the pre-save validation/slug update
         }
-        
+
         res.json(category);
     } catch (err) {
         console.error(err);
-        if (err.name === 'SequelizeUniqueConstraintError') {
+        if (err.code === 11000) {
             return res.status(400).json({ message: "Category with this name already exists" });
         }
         res.status(500).json({ message: "Internal server error" });
@@ -118,13 +113,13 @@ router.put("/:id", async (req, res) => {
 // Delete category
 router.delete("/:id", async (req, res) => {
     try {
-        const category = await Category.findByPk(req.params.id);
-        
+        const category = await Category.findById(req.params.id);
+
         if (!category) {
             return res.status(404).json({ message: "Category not found" });
         }
-        
-        await category.destroy();
+
+        await category.deleteOne();
         res.json({ message: "Category deleted successfully" });
     } catch (err) {
         console.error(err);

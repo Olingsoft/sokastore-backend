@@ -18,7 +18,7 @@ router.post("/register", async (req, res) => {
         }
 
         // Check if email exists
-        const existing = await User.findOne({ where: { email } });
+        const existing = await User.findOne({ email });
         if (existing) {
             return res.status(400).json({ message: "Email already registered" });
         }
@@ -27,7 +27,7 @@ router.post("/register", async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // Check if phone number is already registered
-        const existingPhone = await User.findOne({ where: { phone } });
+        const existingPhone = await User.findOne({ phone });
         if (existingPhone) {
             return res.status(400).json({ message: "Phone number already registered" });
         }
@@ -42,10 +42,10 @@ router.post("/register", async (req, res) => {
 
         // Issue JWT token
         const token = jwt.sign(
-            { 
-                id: user.id, 
+            {
+                id: user._id,
                 email: user.email,
-                role: user.role 
+                role: user.role
             },
             JWT_SECRET,
             { expiresIn: "7d" }
@@ -54,12 +54,12 @@ router.post("/register", async (req, res) => {
         res.json({
             message: "Registration successful",
             token,
-            user: { 
-                id: user.id, 
-                name: user.name, 
-                email: user.email, 
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
                 phone: user.phone,
-                role: user.role 
+                role: user.role
             }
         });
 
@@ -79,7 +79,7 @@ router.post("/login", async (req, res) => {
         }
 
         // Check user
-        const user = await User.findOne({ where: { email } });
+        const user = await User.findOne({ email });
         if (!user) {
             return res.status(400).json({ message: "Invalid email or password" });
         }
@@ -92,10 +92,10 @@ router.post("/login", async (req, res) => {
 
         // Issue JWT token
         const token = jwt.sign(
-            { 
-                id: user.id, 
+            {
+                id: user._id,
                 email: user.email,
-                role: user.role 
+                role: user.role
             },
             JWT_SECRET,
             { expiresIn: "7d" }
@@ -104,12 +104,12 @@ router.post("/login", async (req, res) => {
         res.json({
             message: "Login successful",
             token,
-            user: { 
-                id: user.id, 
-                name: user.name, 
-                email: user.email, 
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
                 phone: user.phone,
-                role: user.role 
+                role: user.role
             }
         });
 

@@ -6,9 +6,7 @@ const auth = require('../middleware/auth');
 // Get all users
 router.get('/', auth, async (req, res) => {
     try {
-        const users = await User.findAll({
-            attributes: { exclude: ['password'] } // Don't return passwords
-        });
+        const users = await User.find().select('-password'); // Don't return passwords
         res.json(users);
     } catch (error) {
         console.error('Error fetching users:', error);
@@ -19,14 +17,12 @@ router.get('/', auth, async (req, res) => {
 // Get single user by ID
 router.get('/:id', async (req, res) => {
     try {
-        const user = await User.findByPk(req.params.id, {
-            attributes: { exclude: ['password'] }
-        });
-        
+        const user = await User.findById(req.params.id).select('-password');
+
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        
+
         res.json(user);
     } catch (error) {
         console.error('Error fetching user:', error);

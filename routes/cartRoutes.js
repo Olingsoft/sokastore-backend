@@ -1,80 +1,67 @@
 const express = require('express');
 const router = express.Router();
-const { Cart, CartItem, Product, ProductImage } = require('../models/associations');
+const { Cart, CartItem, Product } = require('../models');
 const auth = require('../middleware/auth');
 
 // Get user's cart
 router.get('/', auth, async (req, res) => {
-    console.log('GET /api/cart hit');
     try {
-        console.log('User from auth middleware:', req.user);
         if (!req.user || !req.user.id) {
-            console.error('User ID missing in request');
             return res.status(401).json({ message: 'User not authenticated correctly' });
         }
 
-        console.log('Fetching cart for user:', req.user.id);
-
-        // First, find the cart without includes to avoid complex subquery issues
+        // Find active cart
         let cart = await Cart.findOne({
-            where: {
-                userId: req.user.id,
-                status: 'active'
-            }
+            userId: req.user.id,
+            status: 'active'
         });
 
-        console.log('Cart found:', cart ? cart.id : 'No active cart');
-
         if (!cart) {
-            console.log('Creating new cart for user:', req.user.id);
             cart = await Cart.create({ userId: req.user.id });
-            // Return empty cart structure if just created
             return res.json({
-                id: cart.id,
+                id: cart._id,
                 items: [],
                 totalAmount: 0
             });
         }
 
-        // Now fetch cart items separately with product details
-        const cartItems = await CartItem.findAll({
-            where: {
-                cartId: cart.id
-            },
-            include: [{
-                model: Product,
-                as: 'product',
-                include: [{
-                    model: ProductImage,
-                    as: 'images',
-                    required: false
-                }]
-            }]
-        });
+        // Fetch cart items with product details and images
+        const cartItems = await CartItem.find({ cartId: cart._id })
+            .populate({
+                path: 'productId',
+                populate: { path: 'images' } // Populate virtual images on Product
+            });
 
-        console.log('Cart items count:', cartItems?.length || 0);
-
-        // Calculate total amount including customization fees
+        // Calculate total amount
         let totalAmount = 0;
         if (cartItems) {
             totalAmount = cartItems.reduce((sum, item) => {
-                const itemPrice = parseFloat(item.price) * item.quantity;
-                const customFee = parseFloat(item.customizationFee || 0) * item.quantity;
+                if (!item.productId) return sum; // Handle deleted products
+                const itemPrice = item.price * item.quantity;
+                const customFee = (item.customizationFee || 0) * item.quantity;
                 return sum + itemPrice + customFee;
             }, 0);
         }
 
-        console.log('Returning cart with', cartItems?.length || 0, 'items, total:', totalAmount);
+        // Map items to include product details structure similar to previous response
+        const formattedItems = cartItems.map(item => {
+            const product = item.productId;
+            if (!product) return item; // Orphaned item
+
+            return {
+                ...item.toObject(),
+                product: product
+            };
+        });
 
         res.json({
-            id: cart.id,
-            items: cartItems || [],
+            id: cart._id,
+            items: formattedItems,
             totalAmount: totalAmount.toFixed(2)
         });
 
     } catch (error) {
-        console.error('Error fetching cart - Full error:', error);
-        console.error('Error stack:', error.stack);
+        console.error('Error fetching cart:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
@@ -85,30 +72,30 @@ router.post('/add', auth, async (req, res) => {
         const { productId, quantity = 1, size, type, customization, customizationFee } = req.body;
 
         // Find product to get price
-        const product = await Product.findByPk(productId);
+        const product = await Product.findById(productId);
         if (!product) {
             return res.status(404).json({ message: 'Product not found' });
         }
 
         // Find or create active cart
-        const [cart] = await Cart.findOrCreate({
-            where: {
-                userId: req.user.id,
-                status: 'active'
-            },
-            defaults: { userId: req.user.id }
+        let cart = await Cart.findOne({
+            userId: req.user.id,
+            status: 'active'
         });
 
-        // Check if item already exists in cart with same customization
-        // Items with different customizations should be separate cart items
+        if (!cart) {
+            cart = await Cart.create({ userId: req.user.id });
+        }
+
+        // Check if item already exists
         let cartItem = await CartItem.findOne({
-            where: {
-                cartId: cart.id,
-                productId: productId,
-                size: size || null,
-                type: type || null,
-                customization: customization || null
-            }
+            cartId: cart._id,
+            productId: productId,
+            size: size || null,
+            type: type || null,
+            // Deep comparison of customization object might need better handling
+            // for now assume simple equality or null
+            customization: customization || null
         });
 
         if (cartItem) {
@@ -116,12 +103,12 @@ router.post('/add', auth, async (req, res) => {
             cartItem.quantity += parseInt(quantity);
             await cartItem.save();
         } else {
-            // Create new item with customization
+            // Create new item
             cartItem = await CartItem.create({
-                cartId: cart.id,
+                cartId: cart._id,
                 productId: productId,
                 quantity: parseInt(quantity),
-                price: product.price, // Store current price
+                price: product.price,
                 size: size || null,
                 type: type || null,
                 customization: customization || null,
@@ -141,20 +128,20 @@ router.post('/add', auth, async (req, res) => {
 router.put('/item/:id', auth, async (req, res) => {
     try {
         const { quantity } = req.body;
-        const cartItem = await CartItem.findByPk(req.params.id);
+        const cartItem = await CartItem.findById(req.params.id);
 
         if (!cartItem) {
             return res.status(404).json({ message: 'Item not found' });
         }
 
         // Verify item belongs to user's active cart
-        const cart = await Cart.findByPk(cartItem.cartId);
-        if (cart.userId !== req.user.id || cart.status !== 'active') {
+        const cart = await Cart.findById(cartItem.cartId);
+        if (!cart || cart.userId.toString() !== req.user.id || cart.status !== 'active') {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
         if (quantity < 1) {
-            await cartItem.destroy();
+            await cartItem.deleteOne();
             return res.json({ message: 'Item removed from cart' });
         }
 
@@ -172,19 +159,19 @@ router.put('/item/:id', auth, async (req, res) => {
 // Remove item from cart
 router.delete('/item/:id', auth, async (req, res) => {
     try {
-        const cartItem = await CartItem.findByPk(req.params.id);
+        const cartItem = await CartItem.findById(req.params.id);
 
         if (!cartItem) {
             return res.status(404).json({ message: 'Item not found' });
         }
 
         // Verify item belongs to user's active cart
-        const cart = await Cart.findByPk(cartItem.cartId);
-        if (cart.userId !== req.user.id || cart.status !== 'active') {
+        const cart = await Cart.findById(cartItem.cartId);
+        if (!cart || cart.userId.toString() !== req.user.id || cart.status !== 'active') {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
-        await cartItem.destroy();
+        await cartItem.deleteOne();
         res.json({ message: 'Item removed from cart' });
 
     } catch (error) {
@@ -197,16 +184,12 @@ router.delete('/item/:id', auth, async (req, res) => {
 router.delete('/', auth, async (req, res) => {
     try {
         const cart = await Cart.findOne({
-            where: {
-                userId: req.user.id,
-                status: 'active'
-            }
+            userId: req.user.id,
+            status: 'active'
         });
 
         if (cart) {
-            await CartItem.destroy({
-                where: { cartId: cart.id }
-            });
+            await CartItem.deleteMany({ cartId: cart._id });
         }
 
         res.json({ message: 'Cart cleared' });

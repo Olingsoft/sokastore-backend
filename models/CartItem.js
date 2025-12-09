@@ -1,65 +1,44 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../database/sequelize');
+const mongoose = require('mongoose');
 
-const CartItem = sequelize.define('CartItem', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
+const cartItemSchema = new mongoose.Schema({
     cartId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: 'carts',
-            key: 'id'
-        }
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Cart',
+        required: true
     },
     productId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: 'products',
-            key: 'id'
-        }
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
     },
     quantity: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 1,
-        validate: {
-            min: 1
-        }
+        type: Number,
+        required: true,
+        default: 1,
+        min: [1, 'Quantity must be at least 1']
     },
     price: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        comment: 'Snapshot of product price at time of addition'
+        type: Number,
+        required: true
     },
     size: {
-        type: DataTypes.STRING,
-        allowNull: true
+        type: String,
+        default: null
     },
     type: {
-        type: DataTypes.STRING,
-        allowNull: true,
-        comment: 'Product type (e.g., Replica, Authentic)'
+        type: String,
+        default: null
     },
     customization: {
-        type: DataTypes.JSON,
-        allowNull: true,
-        comment: 'Customization details (playerName, playerNumber, selectedBadge)'
+        type: mongoose.Schema.Types.Mixed,
+        default: null
     },
     customizationFee: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: true,
-        defaultValue: 0,
-        comment: 'Additional fee for customization'
+        type: Number,
+        default: 0
     }
 }, {
-    tableName: 'cart_items',
-    timestamps: true,
-    underscored: true
+    timestamps: true
 });
 
-module.exports = CartItem;
+module.exports = mongoose.model('CartItem', cartItemSchema);

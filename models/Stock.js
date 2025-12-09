@@ -1,115 +1,72 @@
-// models/Stock.js
-const { DataTypes } = require("sequelize");
-const { Model } = require("sequelize");
-const sequelize = require("../database/sequelize");
-
-class Stock extends Model {}
-
-Stock.init(
-    {
-        id: {
-            type: DataTypes.INTEGER,
-            primaryKey: true,
-            autoIncrement: true,
-        },
-        productId: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            references: {
-                model: 'Products',
-                key: 'id'
-            },
-            onUpdate: 'CASCADE',
-            onDelete: 'CASCADE'
-        },
-        quantity: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            defaultValue: 0,
-            validate: {
-                min: 0
-            }
-        },
-        type: {
-            type: DataTypes.ENUM('in', 'out'),
-            allowNull: false
-        },
-        reference: {
-            type: DataTypes.STRING,
-            comment: 'Reference number for the stock movement (e.g., PO number, sales order)'
-        },
-        notes: {
-            type: DataTypes.TEXT,
-            allowNull: true
-        },
-        unitPrice: {
-            type: DataTypes.DECIMAL(10, 2),
-            allowNull: true,
-            comment: 'Unit price at the time of stock movement'
-        },
-        totalValue: {
-            type: DataTypes.VIRTUAL,
-            get() {
-                return this.quantity * (this.unitPrice || 0);
-            },
-            set() {
-                throw new Error('Do not try to set the `totalValue` value!');
-            }
-        },
-        date: {
-            type: DataTypes.DATE,
-            defaultValue: DataTypes.NOW,
-            allowNull: false
-        }
-    },
-    {
-        sequelize,
-        modelName: "Stock",
-        tableName: "Stocks",
-        timestamps: true,
-        paranoid: true
-    }
-);
-
-// Import Product model after the Stock model is defined
+const mongoose = require('mongoose');
 const Product = require('./Product');
 
-// Add hooks after both models are defined
-Stock.addHook('beforeSave', 'updateProductStock', async (stock) => {
-    const product = await Product.findByPk(stock.productId);
-    
-    if (!product) {
-        throw new Error('Product not found');
+const stockSchema = new mongoose.Schema({
+    productId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
+    },
+    quantity: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0
+    },
+    type: {
+        type: String,
+        enum: ['in', 'out'],
+        required: true
+    },
+    reference: {
+        type: String,
+        default: ''
+    },
+    notes: {
+        type: String,
+        default: ''
+    },
+    unitPrice: {
+        type: Number
+    },
+    date: {
+        type: Date,
+        default: Date.now,
+        required: true
     }
-
-    // Calculate new quantity
-    const quantityChange = stock.type === 'in' ? stock.quantity : -stock.quantity;
-    const newQuantity = product.stockQuantity + quantityChange;
-    
-    // Prevent negative stock for out movements
-    if (newQuantity < 0) {
-        throw new Error('Insufficient stock');
-    }
-
-    // Update product stock
-    await Product.update(
-        { stockQuantity: newQuantity },
-        { where: { id: stock.productId } }
-    );
+}, {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
-Stock.addHook('afterDestroy', 'revertProductStock', async (stock) => {
-    const product = await Product.findByPk(stock.productId);
-    
-    if (product) {
-        const quantityChange = stock.type === 'in' ? -stock.quantity : stock.quantity;
-        const newQuantity = Math.max(0, product.stockQuantity + quantityChange);
-        
-        await Product.update(
-            { stockQuantity: newQuantity },
-            { where: { id: stock.productId } }
-        );
-    }
+stockSchema.virtual('totalValue').get(function () {
+    return this.quantity * (this.unitPrice || 0);
 });
 
-module.exports = Stock;
+// Update product stock before saving
+stockSchema.pre('save', async function (next) {
+    if (this.isNew) {
+        try {
+            const product = await Product.findById(this.productId);
+            if (!product) {
+                throw new Error('Product not found');
+            }
+
+            const quantityChange = this.type === 'in' ? this.quantity : -this.quantity;
+            const newQuantity = product.stockQuantity + quantityChange;
+
+            if (newQuantity < 0) {
+                throw new Error('Insufficient stock');
+            }
+
+            product.stockQuantity = newQuantity;
+            await product.save();
+        } catch (error) {
+            return next(error);
+        }
+    }
+    next();
+});
+
+module.exports = mongoose.model('Stock', stockSchema);

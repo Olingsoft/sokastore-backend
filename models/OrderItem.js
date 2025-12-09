@@ -1,82 +1,56 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../database/sequelize');
+const mongoose = require('mongoose');
 
-const OrderItem = sequelize.define('OrderItem', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
+const orderItemSchema = new mongoose.Schema({
     orderId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: 'orders',
-            key: 'id'
-        }
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Order',
+        required: true
     },
     productId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: 'products',
-            key: 'id'
-        }
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
     },
-    // Product snapshot at time of order
     productName: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        comment: 'Product name at time of purchase'
+        type: String,
+        required: true
     },
     productImage: {
-        type: DataTypes.STRING,
-        allowNull: true,
-        comment: 'Primary product image URL'
+        type: String,
+        default: null
     },
-    // Order details
     quantity: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 1,
-        validate: {
-            min: 1
-        }
+        type: Number,
+        required: true,
+        default: 1,
+        min: 1
     },
     price: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        comment: 'Unit price at time of purchase'
+        type: Number,
+        required: true
     },
     subtotal: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        comment: 'quantity * price'
+        type: Number,
+        required: true
     },
-    // Product variations
     size: {
-        type: DataTypes.STRING,
-        allowNull: true
+        type: String,
+        default: null
     },
     type: {
-        type: DataTypes.STRING,
-        allowNull: true
+        type: String,
+        default: null
     },
-    // Customization details (stored as JSON)
     customization: {
-        type: DataTypes.JSON,
-        allowNull: true,
-        comment: 'Customization options like player name, number, badge'
+        type: mongoose.Schema.Types.Mixed,
+        default: null
     },
     customizationFee: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.00,
-        allowNull: false
+        type: Number,
+        default: 0
     }
 }, {
-    tableName: 'order_items',
-    timestamps: true,
-    underscored: true
+    timestamps: true
 });
 
-module.exports = OrderItem;
+module.exports = mongoose.model('OrderItem', orderItemSchema);

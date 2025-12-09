@@ -1,125 +1,115 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../database/sequelize');
+const mongoose = require('mongoose');
 
-const Order = sequelize.define('Order', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
+const orderSchema = new mongoose.Schema({
     userId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
     orderNumber: {
-        type: DataTypes.STRING,
+        type: String,
         unique: true,
-        allowNull: false,
-        comment: 'Unique order reference number'
+        required: true
     },
     // Customer Details
     customerName: {
-        type: DataTypes.STRING,
-        allowNull: false
+        type: String,
+        required: true
     },
     customerPhone: {
-        type: DataTypes.STRING,
-        allowNull: false
+        type: String,
+        required: true
     },
     customerEmail: {
-        type: DataTypes.STRING,
-        allowNull: true
+        type: String,
+        default: null
     },
     // Delivery Information
     deliveryType: {
-        type: DataTypes.ENUM('pickup', 'delivery'),
-        defaultValue: 'delivery',
-        allowNull: false
+        type: String,
+        enum: ['pickup', 'delivery'],
+        default: 'delivery',
+        required: true
     },
     deliveryZone: {
-        type: DataTypes.STRING,
-        allowNull: true,
-        comment: 'Delivery zone (e.g., Nairobi, Kiambu)'
+        type: String,
+        default: null
     },
     deliveryAddress: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-        comment: 'Full delivery address'
+        type: String,
+        default: null
     },
     deliveryFee: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.00,
-        allowNull: false
+        type: Number,
+        default: 0
     },
     // Order Amounts
     subtotal: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        comment: 'Sum of all items before fees and taxes'
+        type: Number,
+        required: true
     },
     taxAmount: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.00,
-        allowNull: false
+        type: Number,
+        default: 0
     },
     totalAmount: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        comment: 'Final total including all fees'
+        type: Number,
+        required: true
     },
     // Payment Information
     paymentMethod: {
-        type: DataTypes.ENUM('mpesa', 'card', 'cash'),
-        allowNull: false
+        type: String,
+        enum: ['mpesa', 'card', 'cash'],
+        required: true
     },
     paymentStatus: {
-        type: DataTypes.ENUM('pending', 'paid', 'failed', 'refunded'),
-        defaultValue: 'pending',
-        allowNull: false
+        type: String,
+        enum: ['pending', 'paid', 'failed', 'refunded'],
+        default: 'pending',
+        required: true
     },
     paymentPhone: {
-        type: DataTypes.STRING,
-        allowNull: true,
-        comment: 'Phone number used for M-Pesa payment'
+        type: String,
+        default: null
     },
     transactionId: {
-        type: DataTypes.STRING,
-        allowNull: true,
-        comment: 'Payment gateway transaction ID'
+        type: String,
+        default: null
     },
     // Order Status
     orderStatus: {
-        type: DataTypes.ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'),
-        defaultValue: 'pending',
-        allowNull: false
+        type: String,
+        enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
+        default: 'pending',
+        required: true
     },
-    // Additional Information
     notes: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-        comment: 'Special instructions or notes'
+        type: String,
+        default: null
     },
-    // Timestamps for tracking
     paidAt: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        default: null
     },
     shippedAt: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        default: null
     },
     deliveredAt: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        default: null
     }
 }, {
-    tableName: 'orders',
     timestamps: true,
-    underscored: true
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
-module.exports = Order;
+// Virtual for items
+orderSchema.virtual('items', {
+    ref: 'OrderItem',
+    localField: '_id',
+    foreignField: 'orderId'
+});
+
+module.exports = mongoose.model('Order', orderSchema);

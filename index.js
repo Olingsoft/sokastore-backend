@@ -1,5 +1,5 @@
 const express = require('express');
-const sequelize = require('./database/sequelize');
+const connectDB = require('./config/db');
 const User = require('./models/User'); // may be used elsewhere
 const cors = require('cors');
 const path = require('path');
@@ -21,15 +21,11 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
 // Test database connection
-app.get('/', async (req, res) => {
-  try {
-    await sequelize.authenticate();
-    console.log('Connection to the database has been established successfully.');
-    res.json({ status: 'Database connection successful' });
-  } catch (error) {
-    console.error('Unable to connect to the database:', error);
-    res.status(500).json({ error: 'Database connection failed' });
-  }
+// Database connection
+connectDB();
+
+app.get('/', (req, res) => {
+  res.json({ status: 'API is running' });
 });
 
 // Routes
@@ -52,13 +48,6 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/badges', badgeRoutes);
 
 // Sync database and start server (alter:true adds missing columns)
-sequelize.sync({ alter: true })
-  .then(() => {
-    console.log('Database synced');
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  })
-  .catch(err => {
-    console.error('Unable to sync database:', err);
-  });
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
