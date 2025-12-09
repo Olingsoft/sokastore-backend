@@ -10,6 +10,14 @@ const productImageSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    data: {
+        type: Buffer,
+        required: false
+    },
+    contentType: {
+        type: String,
+        required: false
+    },
     isPrimary: {
         type: Boolean,
         default: false
@@ -20,6 +28,14 @@ const productImageSchema = new mongoose.Schema({
     }
 }, {
     timestamps: true
+});
+
+// Avoid returning the binary data by default when converting to JSON to keep responses light
+productImageSchema.set('toJSON', {
+    transform: function (doc, ret) {
+        delete ret.data;
+        return ret;
+    }
 });
 
 module.exports = mongoose.model('ProductImage', productImageSchema);

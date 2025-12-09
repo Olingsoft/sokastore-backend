@@ -6,22 +6,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure upload directory exists
-const uploadDir = path.join(__dirname, '..', 'public', 'uploads', 'products');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Configure multer for multiple file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'product-' + uniqueSuffix + path.extname(file.originalname).toLowerCase());
-    }
-});
+// Configure multer for memory storage
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
     const filetypes = /jpeg|jpg|png/;
@@ -58,6 +44,22 @@ const handleFileUpload = (req, res) => {
     });
 };
 
+// Serve product image by ID
+router.get('/image/:id', async (req, res) => {
+    try {
+        const image = await ProductImage.findById(req.params.id);
+        if (!image || !image.data) {
+            return res.status(404).send('Image not found');
+        }
+
+        res.set('Content-Type', image.contentType);
+        res.send(image.data);
+    } catch (error) {
+        console.error('Error fetching image:', error);
+        res.status(500).send('Error fetching image');
+    }
+});
+
 // Create a new product with multiple images
 router.post('/', auth, async (req, res) => {
     try {
@@ -87,10 +89,18 @@ router.post('/', auth, async (req, res) => {
         if (req.files && req.files.length > 0) {
             const imagePromises = req.files.map((file, index) => {
                 return ProductImage.create({
-                    url: `/uploads/products/${path.basename(file.path)}`,
+                    data: file.buffer,
+                    contentType: file.mimetype,
                     isPrimary: index === 0,
                     position: index,
-                    productId: product._id
+                    productId: product._id,
+                    // Temporary URL until ID is generated, but we can use a placeholder or null if we change schema
+                    // For now, let's create it and then update the URL
+                    url: 'placeholder'
+                }).then(image => {
+                    // Update the URL to point to the API endpoint
+                    image.url = `/api/products/image/${image._id}`;
+                    return image.save();
                 });
             });
 
@@ -108,15 +118,7 @@ router.post('/', auth, async (req, res) => {
 
     } catch (error) {
         console.error('Error creating product:', error);
-
-        // Clean up uploaded files if there was an error
-        if (req.files && req.files.length > 0) {
-            req.files.forEach(file => {
-                if (file.path && fs.existsSync(file.path)) {
-                    fs.unlinkSync(file.path);
-                }
-            });
-        }
+        // Note: No need to cleanup files as they are in memory
 
         const statusCode = error.name === 'ValidationError' ? 400 : 500;
 
@@ -269,10 +271,15 @@ router.put('/:id', auth, async (req, res) => {
 
             const imagePromises = req.files.map((file, index) => {
                 return ProductImage.create({
-                    url: `/uploads/products/${path.basename(file.path)}`,
+                    data: file.buffer,
+                    contentType: file.mimetype,
                     isPrimary: currentImagesCount === 0 && index === 0,
                     position: currentImagesCount + index,
-                    productId: product._id
+                    productId: product._id,
+                    url: 'placeholder'
+                }).then(image => {
+                    image.url = `/api/products/image/${image._id}`;
+                    return image.save();
                 });
             });
 
@@ -290,15 +297,7 @@ router.put('/:id', auth, async (req, res) => {
 
     } catch (error) {
         console.error('Error updating product:', error);
-
-        // Clean up uploaded files if there was an error
-        if (req.files && req.files.length > 0) {
-            req.files.forEach(file => {
-                if (file.path && fs.existsSync(file.path)) {
-                    fs.unlinkSync(file.path);
-                }
-            });
-        }
+        // Note: No need to cleanup files as they are in memory
 
         const statusCode = error.name === 'ValidationError' ? 400 : 500;
         res.status(statusCode).json({
