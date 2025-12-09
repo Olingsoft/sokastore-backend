@@ -19,7 +19,7 @@ const categorySchema = new mongoose.Schema({
     timestamps: true
 });
 
-categorySchema.pre('validate', async function (next) {
+categorySchema.pre('validate', async function () {
     if (this.name && (!this.slug || this.isModified('name'))) {
         let slug = slugify(this.name, { lower: true, strict: true });
         let count = 1;
@@ -32,7 +32,6 @@ categorySchema.pre('validate', async function (next) {
         }
         this.slug = slug;
     }
-    next();
 });
 
 module.exports = mongoose.model('Category', categorySchema);

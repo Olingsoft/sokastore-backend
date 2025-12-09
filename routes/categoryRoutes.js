@@ -76,10 +76,22 @@ router.post("/", async (req, res) => {
         const category = await Category.create({ name });
         res.status(201).json(category);
     } catch (err) {
-        console.error(err);
-        if (err.code === 11000) { // Duplicate key error
+        console.error("Error creating category:", err);
+
+        // Handle Mongoose validation errors
+        if (err.name === 'ValidationError') {
+            const messages = Object.values(err.errors).map(e => e.message);
+            return res.status(400).json({
+                message: "Validation failed",
+                errors: messages
+            });
+        }
+
+        // Handle duplicate key error
+        if (err.code === 11000) {
             return res.status(400).json({ message: "Category with this name already exists" });
         }
+
         res.status(500).json({ message: "Internal server error" });
     }
 });
@@ -102,10 +114,22 @@ router.put("/:id", async (req, res) => {
 
         res.json(category);
     } catch (err) {
-        console.error(err);
+        console.error("Error updating category:", err);
+
+        // Handle Mongoose validation errors
+        if (err.name === 'ValidationError') {
+            const messages = Object.values(err.errors).map(e => e.message);
+            return res.status(400).json({
+                message: "Validation failed",
+                errors: messages
+            });
+        }
+
+        // Handle duplicate key error
         if (err.code === 11000) {
             return res.status(400).json({ message: "Category with this name already exists" });
         }
+
         res.status(500).json({ message: "Internal server error" });
     }
 });
