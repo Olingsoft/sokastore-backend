@@ -45,9 +45,21 @@ router.post('/', async (req, res) => {
         res.status(201).json(newBadge);
     } catch (error) {
         console.error('Error creating badge:', error);
+
+        // Handle Mongoose validation errors
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(e => e.message);
+            return res.status(400).json({
+                message: 'Validation failed',
+                errors: messages
+            });
+        }
+
+        // Handle duplicate key error
         if (error.code === 11000) {
             return res.status(400).json({ message: 'Badge name already exists' });
         }
+
         res.status(500).json({ message: 'Server error creating badge' });
     }
 });
@@ -71,9 +83,21 @@ router.put('/:id', async (req, res) => {
         res.json(badge);
     } catch (error) {
         console.error('Error updating badge:', error);
+
+        // Handle Mongoose validation errors
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(e => e.message);
+            return res.status(400).json({
+                message: 'Validation failed',
+                errors: messages
+            });
+        }
+
+        // Handle duplicate key error
         if (error.code === 11000) {
             return res.status(400).json({ message: 'Badge name already exists' });
         }
+
         res.status(500).json({ message: 'Server error updating badge' });
     }
 });

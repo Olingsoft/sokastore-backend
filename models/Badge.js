@@ -27,7 +27,7 @@ const badgeSchema = new mongoose.Schema({
     timestamps: true
 });
 
-badgeSchema.pre('validate', async function (next) {
+badgeSchema.pre('validate', async function () {
     if (this.name && (!this.slug || this.isModified('name'))) {
         let slug = slugify(this.name, { lower: true, strict: true });
         let count = 1;
@@ -42,7 +42,6 @@ badgeSchema.pre('validate', async function (next) {
         }
         this.slug = slug;
     }
-    next();
 });
 
 module.exports = mongoose.model('Badge', badgeSchema);
