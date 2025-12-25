@@ -11,6 +11,18 @@ const productSchema = new mongoose.Schema({
         required: [true, 'Price is required'],
         min: [0, 'Price must be a positive number']
     },
+    hasVersions: {
+        type: Boolean,
+        default: false
+    },
+    priceFan: {
+        type: Number,
+        default: 0
+    },
+    pricePlayer: {
+        type: Number,
+        default: 0
+    },
     category: {
         type: String,
         required: [true, 'Category is required'],

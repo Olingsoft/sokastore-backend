@@ -37,6 +37,8 @@ const stockRoutes = require('./routes/stockRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const badgeRoutes = require('./routes/badgeRoutes');
+const blogRoutes = require('./routes/blogRoutes');
+
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -46,6 +48,8 @@ app.use('/api/stock', stockRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/badges', badgeRoutes);
+app.use('/api/blogs', blogRoutes);
+
 
 // Sync database and start server (alter:true adds missing columns)
 app.listen(PORT, () => {

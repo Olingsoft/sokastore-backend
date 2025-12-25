@@ -103,12 +103,22 @@ router.post('/add', auth, async (req, res) => {
             cartItem.quantity += parseInt(quantity);
             await cartItem.save();
         } else {
+            // Determine price based on version if applicable
+            let itemPrice = product.price;
+            if (product.hasVersions) {
+                if (type === 'Fan Version') {
+                    itemPrice = product.priceFan;
+                } else if (type === 'Player Version') {
+                    itemPrice = product.pricePlayer;
+                }
+            }
+
             // Create new item
             cartItem = await CartItem.create({
                 cartId: cart._id,
                 productId: productId,
                 quantity: parseInt(quantity),
-                price: product.price,
+                price: itemPrice,
                 size: size || null,
                 type: type || null,
                 customization: customization || null,

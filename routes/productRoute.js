@@ -65,7 +65,7 @@ router.post('/', auth, async (req, res) => {
     try {
         await handleFileUpload(req, res);
 
-        const { name, price, size, category, description, hasCustomization, customizationDetails } = req.body;
+        const { name, price, size, category, description, hasCustomization, customizationDetails, hasVersions, priceFan, pricePlayer } = req.body;
 
         // Validate required fields
         if (!name || !price || !category || !description) {
@@ -80,7 +80,10 @@ router.post('/', auth, async (req, res) => {
             category: category.toUpperCase(),
             description,
             hasCustomization: hasCustomization === 'true',
-            customizationDetails: hasCustomization === 'true' ? customizationDetails : null
+            customizationDetails: hasCustomization === 'true' ? customizationDetails : null,
+            hasVersions: hasVersions === 'true',
+            priceFan: hasVersions === 'true' ? parseFloat(priceFan) : 0,
+            pricePlayer: hasVersions === 'true' ? parseFloat(pricePlayer) : 0
         });
 
         await product.save();
@@ -233,6 +236,9 @@ router.put('/:id', auth, async (req, res) => {
             description,
             hasCustomization,
             customizationDetails,
+            hasVersions,
+            priceFan,
+            pricePlayer,
             removeImages = '[]'
         } = req.body;
 
@@ -253,6 +259,9 @@ router.put('/:id', auth, async (req, res) => {
         product.description = description || product.description;
         product.hasCustomization = hasCustomization === 'true';
         product.customizationDetails = hasCustomization === 'true' ? customizationDetails : null;
+        product.hasVersions = hasVersions === 'true';
+        product.priceFan = hasVersions === 'true' ? parseFloat(priceFan) : 0;
+        product.pricePlayer = hasVersions === 'true' ? parseFloat(pricePlayer) : 0;
 
         await product.save();
 
